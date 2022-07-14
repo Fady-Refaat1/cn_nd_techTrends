@@ -1,4 +1,7 @@
-import sqlite3
+from cgitb import text
+from datetime import datetime
+import logging
+import sqlite3  
 
 from flask import Flask, jsonify, json, render_template, request, url_for, redirect, flash
 from werkzeug.exceptions import abort
@@ -8,6 +11,9 @@ from werkzeug.exceptions import abort
 def get_db_connection():
     connection = sqlite3.connect('database.db')
     connection.row_factory = sqlite3.Row
+    posts = connection.execute('SELECT * FROM posts').fetchall()
+    metricsObj['db_connection_count'] += 1
+    metricsObj['post_count'] = len(posts)
     return connection
 
 # Function to get a post using its ID
@@ -18,6 +24,19 @@ def get_post(post_id):
     connection.close()
     return post
 
+# health check function
+def health_check():
+    try:
+        connection = get_db_connection()
+        connection.close()
+        return "OK - healthy"
+    except:
+        return "Not - healthy"
+
+# get time and date 
+def getTimeDate():
+    now = datetime.now()
+    return  now.strftime("%d/%m/%Y , %H:%M:%S")
 # Define the Flask application
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your secret key'
@@ -30,19 +49,44 @@ def index():
     connection.close()
     return render_template('index.html', posts=posts)
 
+# Health check endpoint
+@app.route("/healthz")
+def healthz():
+    status = health_check()
+    response = app.response_class(
+        response=json.dumps({"result": status}),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+# metrics endpoint
+@app.route("/metrics")
+def metricsEndPoint():
+    response = app.response_class(
+        response=json.dumps(metricsObj),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
 # Define how each individual article is rendered 
 # If the post ID is not found a 404 page is shown
 @app.route('/<int:post_id>')
 def post(post_id):
     post = get_post(post_id)
     if post is None:
+      app.logger.info(f'{getTimeDate()}, Article not existing!')
       return render_template('404.html'), 404
     else:
+      title = post['title']
+      app.logger.info(f'{getTimeDate()}, Article {title} retrieved!')
       return render_template('post.html', post=post)
 
 # Define the About Us page
 @app.route('/about')
 def about():
+    app.logger.info(f'{getTimeDate()}, About Us page retrieved successfully !')
     return render_template('about.html')
 
 # Define the post creation functionality 
@@ -60,6 +104,7 @@ def create():
                          (title, content))
             connection.commit()
             connection.close()
+            app.logger.info(f'{getTimeDate()}, Article {title} created successfully !')
 
             return redirect(url_for('index'))
 
@@ -67,4 +112,6 @@ def create():
 
 # start the application on port 3111
 if __name__ == "__main__":
+   metricsObj = {"db_connection_count": 0,"post_count": 0}
+   logging.basicConfig(level = logging.DEBUG, filename = 'application.log')
    app.run(host='0.0.0.0', port='3111')
