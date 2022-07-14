@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: techtrends
+  name: techtrends
+  namespace: sandbox
+spec:
+  ports:
+  - name: http
+    port: 4111
+    protocol: TCP
+    targetPort: 3111
+    nodePort: 30005
+  - name: https
+    port: 4111
+    protocol: TCP
+    targetPort: 3111
+    nodePort: 30006
+  selector:
+    app: techtrends
+  sessionAffinity: None
+  type: NodePort
