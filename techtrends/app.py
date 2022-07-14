@@ -1,4 +1,3 @@
-from cgitb import text
 from datetime import datetime
 import logging
 import sqlite3  
@@ -113,5 +112,5 @@ def create():
 # start the application on port 3111
 if __name__ == "__main__":
    metricsObj = {"db_connection_count": 0,"post_count": 0}
-   logging.basicConfig(level = logging.DEBUG, filename = 'application.log')
+   logging.basicConfig(level = logging.DEBUG)
    app.run(host='0.0.0.0', port='3111')
