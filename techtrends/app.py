@@ -1,20 +1,21 @@
 import logging
+import os
 import sqlite3  
 
 from flask import Flask, jsonify, json, render_template, request, url_for, redirect, flash
 from werkzeug.exceptions import abort
 
 # global metrics object
-metricsObj = {"db_connection_count": 0,"post_count": 0}
+get_db_connection_count = 0
 # Function to get a database connection.
 # This function connects to database with the name `database.db`
 def get_db_connection():
-    connection = sqlite3.connect('database.db')
-    connection.row_factory = sqlite3.Row
-    posts = connection.execute('SELECT * FROM posts').fetchall()
-    metricsObj['db_connection_count'] += 1
-    metricsObj['post_count'] = len(posts)
-    return connection
+    global get_db_connection_count
+    if os.path.exists('database.db'):
+        connection = sqlite3.connect('database.db')
+        connection.row_factory = sqlite3.Row
+        get_db_connection_count += 1
+        return connection
 
 # Function to get a post using its ID
 def get_post(post_id):
@@ -23,15 +24,6 @@ def get_post(post_id):
                         (post_id,)).fetchone()
     connection.close()
     return post
-
-# health check function
-def health_check():
-    try:
-        connection = get_db_connection()
-        connection.close()
-        return {"msg":"OK - healthy","statusCode":200}
-    except:
-        return {"msg":"Error - can not connect db","statusCode":500}
 
 # Define the Flask application
 app = Flask(__name__)
@@ -48,19 +40,20 @@ def index():
 # Health check endpoint
 @app.route("/healthz")
 def health():
-    statusObj = health_check()
-    response = app.response_class(
-        response=json.dumps({"result": statusObj['msg']}),
-        status=statusObj['statusCode'],
-        mimetype='application/json'
-    )
-    return response
+    if os.path.exists('database.db'):
+        return jsonify({"result": "OK - healthy"}), 200
+    else:
+        return jsonify({"result": "Error - Missing {}".format('database.db')}), 500
+
 
 # metrics endpoint
 @app.route("/metrics")
-def metricsEndPoint():
+def metrics():
+    connection = get_db_connection()
+    posts_count = connection.execute('SELECT * FROM posts').fetchall()
+    connection.close()
     response = app.response_class(
-        response=json.dumps(metricsObj),
+        response=json.dumps({"db_connection_count": get_db_connection_count,"post_count": len(posts_count)}),
         status=200,
         mimetype='application/json'
     )
