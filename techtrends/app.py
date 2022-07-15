@@ -1,10 +1,11 @@
-from datetime import datetime
 import logging
 import sqlite3  
 
 from flask import Flask, jsonify, json, render_template, request, url_for, redirect, flash
 from werkzeug.exceptions import abort
 
+# global metrics object
+metricsObj = {"db_connection_count": 0,"post_count": 0}
 # Function to get a database connection.
 # This function connects to database with the name `database.db`
 def get_db_connection():
@@ -28,14 +29,10 @@ def health_check():
     try:
         connection = get_db_connection()
         connection.close()
-        return "OK - healthy"
+        return {"msg":"OK - healthy","statusCode":200}
     except:
-        return "Not - healthy"
+        return {"msg":"Error - can not connect db","statusCode":500}
 
-# get time and date 
-def getTimeDate():
-    now = datetime.now()
-    return  now.strftime("%d/%m/%Y , %H:%M:%S")
 # Define the Flask application
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your secret key'
@@ -50,11 +47,11 @@ def index():
 
 # Health check endpoint
 @app.route("/healthz")
-def healthz():
-    status = health_check()
+def health():
+    statusObj = health_check()
     response = app.response_class(
-        response=json.dumps({"result": status}),
-        status=200,
+        response=json.dumps({"result": statusObj['msg']}),
+        status=statusObj['statusCode'],
         mimetype='application/json'
     )
     return response
@@ -75,17 +72,16 @@ def metricsEndPoint():
 def post(post_id):
     post = get_post(post_id)
     if post is None:
-      app.logger.info(f'{getTimeDate()}, Article not existing!')
+      app.logger.error('Non-existing post')
       return render_template('404.html'), 404
     else:
-      title = post['title']
-      app.logger.info(f'{getTimeDate()}, Article {title} retrieved!')
+      app.logger.info('Article %s retrieved!',post['title'])
       return render_template('post.html', post=post)
 
 # Define the About Us page
 @app.route('/about')
 def about():
-    app.logger.info(f'{getTimeDate()}, About Us page retrieved successfully !')
+    app.logger.info('About Us page retrieved successfully !')
     return render_template('about.html')
 
 # Define the post creation functionality 
@@ -103,7 +99,7 @@ def create():
                          (title, content))
             connection.commit()
             connection.close()
-            app.logger.info(f'{getTimeDate()}, Article {title} created successfully !')
+            app.logger.info('Article %s created successfully !',title)
 
             return redirect(url_for('index'))
 
@@ -111,6 +107,5 @@ def create():
 
 # start the application on port 3111
 if __name__ == "__main__":
-   metricsObj = {"db_connection_count": 0,"post_count": 0}
-   logging.basicConfig(level = logging.DEBUG)
+   logging.basicConfig(level = logging.DEBUG,format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
    app.run(host='0.0.0.0', port='3111')
